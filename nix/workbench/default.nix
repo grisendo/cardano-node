@@ -35,7 +35,7 @@ let
 
   workbench = with cardanoNodePackages; with pkgs; workbench' (
     [ git graphviz
-      jq
+      jq yq
       moreutils
       procps
 
