@@ -25,7 +25,7 @@ app() {
       global_rundir_def=$PWD/run
 
       yq --yaml-output "{
-        services:
+        services: (
           (
               .
             | with_entries(
@@ -44,40 +44,116 @@ app() {
                       , volumes: [
                             \"SHARED:/var/cluster\"
                           , \"NODE-\(.value.name):/var/cardano-node\"
+                          , \"TRACER:/var/cardano-tracer\"
                         ]
                       , environment: [
+
                             \"HOST_ADDR=172.22.\(.value.i / 254 | floor).\(.value.i % 254 + 1)\"
                           , \"PORT=\(.value.port)\"
-                          , \"DATA_DIR=/var/cardano-node\"
-                          , \"NODE_CONFIG=/var/cardano-node/config.json\"
-                          , \"NODE_TOPOLOGY=/var/cardano-node/topology.json\"
                           , \"SOCKET_PATH=/var/cardano-node/node.socket\"
-                          , \"RTS_FLAGS=+RTS -N2 -I0 -A16m -qg -qb --disable-delayed-os-memory-return -RTS\"
+                          , \"TRACER_SOCKET_PATH=/var/cardano-tracer/tracer.socket\"
+
+                          , \"DATA_DIR=/var/cardano-node\"
+                          #, \"NODE_CONFIG=/var/cardano-node/config.json\"
+                          , \"NODE_CONFIG=/var/cluster/node-\(.value.i)/config.json\"
+                          , \"NODE_TOPOLOGY=/var/cardano-node/topology.json\"
+
+                          #, \"SHELLEY_GENESIS_FILE=/var/cluster/genesis-shelley.json\"
+                          #, \"BYRON_GENESIS_FILE=/var/cluster/genesis/byron/genesis.json\"
+                          #, \"ALONZO_GENESIS_FILE=/var/cluster/genesis/genesis.alonzo.json\"
+
                           , \"SHELLEY_KES_KEY=/var/cluster/genesis/node-keys/node-kes\(.value.i).skey\"
                           , \"SHELLEY_VRF_KEY=/var/cluster/genesis/node-keys/node-vrf\(.value.i).skey\"
                           , \"SHELLEY_OPCERT=/var/cluster/genesis/node-keys/node\(.value.i).opcert\"
+
+                          , \"RTS_FLAGS=+RTS -N2 -I0 -A16m -qg -qb --disable-delayed-os-memory-return -RTS\"
                         ]
                     }
                 }
               )
           )
-        , \"networks\": {
-          \"cardano-node-network\": {
-              external: false
-            , attachable: true
-            , driver: \"bridge\"
-            , driver_opts: {}
-            , enable_ipv6: false
-            , ipam: {
-                driver: \"default\"
-              , config: [{
-                  subnet: \"172.22.0.0/16\"
-                , ip_range: \"172.22.0.0/16\"
-                , gateway: \"172.22.255.254\"
-                , aux_addresses: {}
-              }]
+#          +
+#          (
+#              .
+#            |
+#              with_entries(
+#                {
+#                    key: \"\(.key)-tracer\"
+#                  , value: {
+#                      container_name: \"\(.value.name)-tracer\"
+#                    , pull_policy: \"never\"
+#                    , image: \"$tracerImageName:$tracerImageTag\"
+#                    , networks: {
+#                        \"cardano-tracer-network\": {
+#                          ipv4_address: \"172.23.\(.value.i / 254 | floor).\(.value.i % 254 + 1)\"
+#                        }
+#                    }
+#                    , volumes: [
+#                        \"NODE-\(.value.name):/var/cardano-node\"
+#                      , \"TRACER:/var/cardano-tracer\"
+#                    ]
+#                    , environment: [
+#                        \"HOME=/var/cardano-node\"
+#                      , \"TRACER_CONFIG=/var/cardano-tracer/config.json\"
+#                    ]
+#                  }
+#                }
+#              )
+#          )
+          +
+          ({
+            \"tracer\": {
+                container_name: \"tracer\"
+              , pull_policy: \"never\"
+              , image: \"$tracerImageName:$tracerImageTag\"
+              , networks: {
+                \"cardano-tracer-network\": {
+                  ipv4_address: \"172.23.255.253\"
+                }
+              }
+              , volumes: [
+                \"TRACER:/var/cardano-tracer\"
+              ]
+              , environment: [
+                  \"HOME=/var/cardano-tracer\"
+                , \"TRACER_CONFIG=/var/cardano-tracer/config.json\"
+              ]
             }
-          }
+          })
+        )
+        , \"networks\": {
+            \"cardano-node-network\": {
+                external: false
+              , attachable: true
+              , driver: \"bridge\"
+              , driver_opts: {}
+              , enable_ipv6: false
+              , ipam: {
+                  driver: \"default\"
+                , config: [{
+                    subnet: \"172.22.0.0/16\"
+                  , ip_range: \"172.22.0.0/16\"
+                  , gateway: \"172.22.255.254\"
+                  , aux_addresses: {}
+                }]
+              }
+            }
+          , \"cardano-tracer-network\": {
+                external: false
+              , attachable: true
+              , driver: \"bridge\"
+              , driver_opts: {}
+              , enable_ipv6: false
+              , ipam: {
+                  driver: \"default\"
+                , config: [{
+                    subnet: \"172.23.0.0/16\"
+                  , ip_range: \"172.23.0.0/16\"
+                  , gateway: \"172.23.255.254\"
+                  , aux_addresses: {}
+                }]
+              }
+            }
         }
         , volumes:
           (
@@ -103,6 +179,17 @@ app() {
                         type: \"none\"
                       , o: \"bind\"
                       , device: \"./run/\${WB_RUNDIR_TAG:-current}\"
+                  }
+                }
+              }
+            +
+              {TRACER:
+                {
+                    external: false
+                  , driver_opts: {
+                        type: \"none\"
+                      , o: \"bind\"
+                      , device: \"./run/\${WB_RUNDIR_TAG:-current}/tracer\"
                   }
                 }
               }
