@@ -24,7 +24,8 @@ let
 
       materialise-profile =
         { profileNix }:
-          pkgs.runCommand "workbench-backend-output-${profileNix.name}-${name}d" {}
+          pkgs.runCommand "workbench-backend-output-${profileNix.name}-${name}d"
+            {}
             ''
             mkdir $out
             cp ${mkBackendConf profileNix} $out/supervisor.conf
@@ -34,7 +35,7 @@ let
       ## mkBackendConf :: Profile -> SupervisorConf/DockerConf
       mkBackendConf =
         profile:
-        pkgs.callPackage ./supervisor-conf.nix
+        import ./supervisor-conf.nix
         { inherit (profile) node-services;
           inherit
             pkgs lib stateDir
