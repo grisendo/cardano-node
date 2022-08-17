@@ -43,6 +43,12 @@ case "$op" in
 
         mkdir -p               "$dir"/supervisor
         cp -f $supervisor_conf "$dir"/supervisor/supervisord.conf
+
+        # Node's config.json expects a genesis folder inside its same directory.
+        for node in $(jq_tolist 'keys' "$dir"/node-specs.json)
+        do local node_dir="$dir"/$node
+          ln -s "$dir"/genesis "$node_dir"/genesis
+        done
         ;;
 
     describe-run )
